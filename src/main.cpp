@@ -233,8 +233,9 @@ void ring_alarm(int rigging_alarm) {
       if(digitalRead(PB_CANCEL)==LOW){
         delay(300);
         alarm_happened = true;
+        alarm_triggered[ringing_alarm] = true;
         alarm_count = 0;
-        alarm_minutes[ringing_alarm] -= 5*snoozed_alarm;
+        alarm_minutes[ringing_alarm] -= 1*snoozed_alarm;
         if(alarm_minutes[ringing_alarm]<0){
           alarm_minutes[ringing_alarm] += 60;
           alarm_hours[ringing_alarm] -= 1;
@@ -250,7 +251,7 @@ void ring_alarm(int rigging_alarm) {
           delay(2000);
           alarm_happened = false;
           alarm_triggered[ringing_alarm] = false;
-          alarm_minutes[ringing_alarm] += 5;
+          alarm_minutes[ringing_alarm] += 1;
           alarm_snoozed = true;
 
           if(alarm_minutes[ringing_alarm]>=60){
@@ -299,7 +300,7 @@ void update_time_with_check_alarm(void) {
       if (alarm_enabled[i]==true && alarm_triggered[i] == false && alarm_hours[i] == hours && alarm_minutes[i] == minutes) {
         ringing_alarm = i;
         ring_alarm(ringing_alarm);
-        alarm_triggered[i] = true;
+        
       }
     }
   }
@@ -530,6 +531,7 @@ void set_alarm(int alarm_number) {
       delay(200);
       alarm_minutes[alarm_number-1] = temp_minute;
       Serial.println("Alarm set for " + String(temp_hour) + ":" + String(temp_minute));
+      alarm_triggered[alarm_number-1] = false;
       alarm_enabled[alarm_number-1] = true;
       break;
     }
