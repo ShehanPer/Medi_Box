@@ -29,6 +29,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 DHTesp dhtSensor;
 
 //Global Variable
+char weekday[8];
 int days = 0;
 int hours = 0;
 int minutes = 0;
@@ -139,9 +140,8 @@ void setup() {
   print_line("Connected to wiFi",2,0,0);
 
   configTime(UTC_OFFSET, UTC_OFFSET_DST, NTP_SERVER);
-
-  
-  
+  delay(200);
+  display.clearDisplay();
 }
 
 
@@ -151,15 +151,12 @@ void loop() {
  
   if (digitalRead(PB_OK) == LOW) {
     delay(200);
-    Serial.println("Menu");
     go_to_menu();
   }
 
   check_temp();
-  print_line("Temp: " + String(temp) +" Humd: "+ String(humd) , 0, 50, 1);
-  
-  Serial.print("snozed alarm: ");
-  Serial.println(alarm_snoozed);
+  print_line("Tem:" + String(int(temp)) +" Hum:"+ String(int(humd)) , 0, 50, 1);
+  delay(700);
 }
 
 //Print the text on the screen
@@ -176,40 +173,48 @@ void print_line(String text, int column, int row, int text_size) {
 
 //Print the time for the user
 void print_time_now(void) {
+
   display.clearDisplay();
-  print_line(String(days), 0, 0, 2);
-  print_line(":", 20, 0, 2);
-  print_line(String(hours), 30, 0, 2);
-  print_line(":", 50, 0, 2);
-  print_line(String(minutes), 60, 0, 2);
-  print_line(":", 80, 0, 2);
-  print_line(String(seconds), 90, 0, 2);
+
+// Print weekday and day
+print_line(weekday, 45, 0, 1);
+print_line(":", 65, 0, 1);
+print_line((days < 10 ? "0" : "") + String(days), 75, 0, 1);
+
+// Print hours, minutes, and seconds with leading zeros
+print_line((hours < 10 ? "0" : "") + String(hours), 25, 10, 2);
+print_line(":", 45, 10, 2);
+print_line((minutes < 10 ? "0" : "") + String(minutes), 55, 10, 2);
+print_line(":", 75, 10, 2);
+print_line((seconds < 10 ? "0" : "") + String(seconds), 85, 10, 2);
 
 }
 
 //Update the time for the user
 void update_time(void) {
-    struct tm timeinfo;
-    getLocalTime(&timeinfo);
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
 
-    char day_str[8];
-    char hour_str[8];
-    char min_str[8];
-    char sec_str[8];
+  char day_str[8];
+  char hour_str[8];
+  char min_str[8];
+  char sec_str[8];
 
-    strftime(day_str, 8, "%d", &timeinfo);
-    strftime(sec_str, 8, "%S", &timeinfo);
-    strftime(hour_str, 8, "%H", &timeinfo);
-    strftime(min_str, 8, "%M", &timeinfo);
+  strftime(day_str, sizeof(day_str), "%d", &timeinfo);
+  strftime(sec_str, sizeof(sec_str), "%S", &timeinfo);
+  strftime(hour_str, sizeof(hour_str), "%H", &timeinfo);
+  strftime(min_str, sizeof(min_str), "%M", &timeinfo);
+  strftime(weekday, sizeof(weekday), "%a", &timeinfo); // Store weekday globally
 
-    hours = atoi(hour_str);
-    minutes = atoi(min_str);
-    days = atoi(day_str);
-    seconds = atoi(sec_str);
+  hours = atoi(hour_str);
+  minutes = atoi(min_str);
+  days = atoi(day_str);
+  seconds = atoi(sec_str);
+}
 
 
     
-}
+
 
 //Ring the alarm for the user
 void ring_alarm(int rigging_alarm) {
@@ -330,14 +335,14 @@ int wait_for_button_press() {
 void go_to_menu() {
   while (digitalRead(PB_CANCEL) == HIGH) {
     display.clearDisplay();
-    print_line(options[current_mode], 2, 0, 0);
+    print_line(options[current_mode], 2, 0, 2);
 
     int pressed = wait_for_button_press();
 
     if (pressed == UP) {
       current_mode += 1;
       current_mode %= max_modes;
-      print_line(options[current_mode], 2, 0, 0);
+      print_line(options[current_mode], 2, 0, 2);
       delay(200);
     }
 
@@ -345,7 +350,7 @@ void go_to_menu() {
       current_mode -= 1;
       if (current_mode < 0) {
         current_mode = max_modes - 1;
-        print_line(options[current_mode], 2, 0, 0);
+        print_line(options[current_mode], 2, 0, 2);
         delay(200);
       }
     }
@@ -398,6 +403,10 @@ void set_time() {
       delay(200);
       break;
     }
+    else if (pressed == CANCEL) {
+      delay(200);
+      break;
+    }
   }
 
   // Enter Offset Hours
@@ -419,6 +428,10 @@ void set_time() {
         delay(200);
         break;
     }
+    else if (pressed == CANCEL) {
+      delay(200);
+      break;
+    }
 }
 
   // Enter Offset Minutes
@@ -437,6 +450,10 @@ void set_time() {
       temp_minute = (temp_minute - 1 < 0) ? 59 : temp_minute - 1;
     } 
     else if (pressed == OK) {
+      delay(200);
+      break;
+    }
+    else if (pressed == CANCEL) {
       delay(200);
       break;
     }
