@@ -35,18 +35,10 @@ int hours = 0;
 int minutes = 0;
 int seconds = 0;
 
-int online_days = 0;
-int online_hours = 0;
-int online_minutes = 0;
-int online_seconds = 0;
-
 int offset_days = 0;
 int offset_hour = 0;
 int offset_min = 0;
 int zone_offset = 0;
-
-unsigned long timeNow = 0;
-unsigned long timeLast = 0;
 
 bool alarm_enabled[] = {false,false};
 int n_alarms = 2;
@@ -71,7 +63,7 @@ int notes[] = {C, D, E, F, G, A, B, C_H};
 
 int current_mode = 0;
 int max_modes = 5;
-String options[] = {"1 - Set Time", "2 - Set Alarm 1", "3 - Set Alarm 2","4 - Show Alarms", "5 - Remove Alarm"};
+String options[] = {"1-Set Time", "2-Set Alarm 1", "3-Set Alarm 2","4-Show Alarms", "5-Remove Alarm"};
 
 
 float temp = 0;
@@ -262,6 +254,22 @@ void ring_alarm(int rigging_alarm) {
             }
           }
           snoozed_alarm +=1;
+          if (snoozed_alarm == 3){
+            alarm_triggered[ringing_alarm] = true;
+            alarm_snoozed = false;
+            alarm_count = 0;
+            alarm_minutes[ringing_alarm] -= 1*snoozed_alarm;
+            if(alarm_minutes[ringing_alarm]<0){
+              alarm_minutes[ringing_alarm] += 60;
+              alarm_hours[ringing_alarm] -= 1;
+              if(alarm_hours[ringing_alarm]<0){
+                alarm_hours[ringing_alarm] += 24;
+              }
+            }
+            snoozed_alarm = 0;
+            break;
+            
+          }
         break;
         
         }
@@ -553,6 +561,7 @@ void show_alarms()
   display.clearDisplay();
   print_line("Alarm " + String(1), 0, 0, 1);
   print_line("Time: " + String(alarm_hours[0]) + " : " + String(alarm_minutes[0]), 0, 10, 1);
+  
   if (alarm_enabled[0]) {
     print_line("Enabled", 0, 20, 1);
   }
@@ -562,6 +571,7 @@ void show_alarms()
 
   print_line("Alarm " + String(2), 0, 30, 1);
   print_line("Time: " + String(alarm_hours[1]) + " : " + String(alarm_minutes[1]), 0, 40, 1);
+
   if (alarm_enabled[1]) {
     print_line("Enabled", 0, 50, 1);
   }
@@ -624,13 +634,13 @@ void check_temp(void) {
   humd = data.humidity;
 
   bool all_good = true;
-  if (data.temperature > 35) {
+  if (data.temperature > 32) {
     all_good = false;
     digitalWrite(LED_2, HIGH);
     print_line("TEMP_HIGH", 1, 30, 0);
   }
 
-  else if (data.temperature < 25) {
+  else if (data.temperature < 24) {
     all_good = false;
     digitalWrite(LED_2, HIGH);
     print_line("TEMP LOW", 1, 30, 0);
@@ -642,7 +652,7 @@ void check_temp(void) {
     print_line("HUMD HIGH", 1, 40, 0);
   }
 
-  else if (data.humidity < 35) {
+  else if (data.humidity < 65) {
     all_good = false;
     digitalWrite(LED_2, HIGH);
     print_line("HUMD LOW", 1, 40, 0);
