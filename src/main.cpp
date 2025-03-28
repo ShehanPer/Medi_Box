@@ -148,7 +148,7 @@ void loop() {
 
   check_temp();
   print_line("Tem:" + String(int(temp)) +" Hum:"+ String(int(humd)) , 0, 50, 1);
-  delay(700);
+  delay(200);
 }
 
 //Print the text on the screen
@@ -209,7 +209,7 @@ void update_time(void) {
 
 
 //Ring the alarm for the user
-void ring_alarm(int rigging_alarm) {
+void ring_alarm(int ringing_alarm) {
 
   display.clearDisplay();
   alarm_snoozed = false;
@@ -227,7 +227,7 @@ void ring_alarm(int rigging_alarm) {
         alarm_happened = true;
         alarm_triggered[ringing_alarm] = true;
         alarm_count = 0;
-        alarm_minutes[ringing_alarm] -= 1*snoozed_alarm;
+        alarm_minutes[ringing_alarm] -= 5*snoozed_alarm;
         if(alarm_minutes[ringing_alarm]<0){
           alarm_minutes[ringing_alarm] += 60;
           alarm_hours[ringing_alarm] -= 1;
@@ -243,7 +243,7 @@ void ring_alarm(int rigging_alarm) {
           delay(2000);
           alarm_happened = false;
           alarm_triggered[ringing_alarm] = false;
-          alarm_minutes[ringing_alarm] += 1;
+          alarm_minutes[ringing_alarm] += 5;
           alarm_snoozed = true;
 
           if(alarm_minutes[ringing_alarm]>=60){
@@ -258,7 +258,7 @@ void ring_alarm(int rigging_alarm) {
             alarm_triggered[ringing_alarm] = true;
             alarm_snoozed = false;
             alarm_count = 0;
-            alarm_minutes[ringing_alarm] -= 1*snoozed_alarm;
+            alarm_minutes[ringing_alarm] -= 5*snoozed_alarm;
             if(alarm_minutes[ringing_alarm]<0){
               alarm_minutes[ringing_alarm] += 60;
               alarm_hours[ringing_alarm] -= 1;
@@ -275,9 +275,9 @@ void ring_alarm(int rigging_alarm) {
         }
       }
       
-      ledcWriteTone(0, notes[i]); // Channel 0, frequency from notes array
+      tone(0, notes[i]); // Channel 0, frequency from notes array
       delay(500);
-      ledcWriteTone(0, 0); // Stop tone
+      noTone(0); // Stop tone
       delay(2);
 
     }
@@ -460,6 +460,12 @@ void set_time() {
     } 
     else if (pressed == OK) {
       delay(200);
+      offset_hour = sign * temp_hour;
+      offset_min = sign * temp_minute;
+      zone_offset = UTC_OFFSET + offset_hour * 3600 + offset_min * 60;
+      configTime(zone_offset, UTC_OFFSET_DST, NTP_SERVER);
+      Serial.println("Time offset set to " + String(offset_hour) + "h " + String(offset_min) + "m");
+  
       break;
     }
     else if (pressed == CANCEL) {
@@ -469,11 +475,6 @@ void set_time() {
   }
 
   // Apply the offset
-  offset_hour = sign * temp_hour;
-  offset_min = sign * temp_minute;
-  zone_offset = UTC_OFFSET + offset_hour * 3600 + offset_min * 60;
-  configTime(zone_offset, UTC_OFFSET_DST, NTP_SERVER);
-  Serial.println("Time offset set to " + String(offset_hour) + "h " + String(offset_min) + "m");
   
   display.clearDisplay();
   print_line("Time Offset Set", 0, 0, 2);
@@ -579,7 +580,7 @@ void show_alarms()
     print_line("Disabled", 0, 50, 1);
   }
 
-  delay(4000);
+  delay(8000);
 }
 
 
@@ -595,7 +596,9 @@ void delete_alarm() {
     if (pressed == UP) {
       delay(200);
       alarm_number += 1;
-      alarm_number = alarm_number % 3;
+      if(alarm_number > 2) {
+        alarm_number = 1;
+      }
     }
 
     else if (pressed == DOWN) {
