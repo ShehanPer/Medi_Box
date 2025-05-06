@@ -4,6 +4,13 @@
 #include <DHTesp.h>
 #include <WiFi.h>
 #include <time.h>
+#include <ESP32Servo.h>
+#include <math.h>
+#include <PubSubClient.h>
+
+
+// Declare a Servo object
+Servo servo;
 
 
 #define NTP_SERVER  "pool.ntp.org"
@@ -23,7 +30,22 @@
 #define PB_DOWN 32
 #define PB_OK 33
 #define DHT 12
+#define LDR_PIN 36
+#define SERVO_PIN 16
 
+#define UP 1
+#define DOWN 2
+#define CANCEL 3
+#define OK 4
+
+//MQTT Broker settings
+#define MQTT_BROKER "broker.hivemq.com"
+#define MQTT_PORT 1883
+#define MQTT_USER ""
+#define MQTT_PASSWORD ""
+
+#define MQTT_PUBLISH_TOPIC "medibox/data"
+#define MQTT_SUBSCRIBE_TOPIC "medibox/commands"
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 DHTesp dhtSensor;
@@ -69,10 +91,17 @@ String options[] = {"1-Set Time", "2-Set Alarm 1", "3-Set Alarm 2","4-Show Alarm
 float temp = 0;
 float humd = 0;
 
-#define UP 1
-#define DOWN 2
-#define CANCEL 3
-#define OK 4
+int ldr_sum = 0;
+int sampling_count = 0;
+float light_intensity = 0.0;
+
+float theta_offset = 30.0;
+float gamma = 0.75;
+float T_med = 30.0;
+
+// MQTT client initialization
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 void print_line(String text, int column, int row, int text_size);
 void update_time_with_check_alarm();
@@ -88,7 +117,8 @@ void update_time();
 void print_time_now(void);
 void show_alarms();
 void snooze_alarm();
-
+void get_ldr_value(int seconds);
+void change_servo_angle(float intensity, float temperature,float ts,float tu);
 
 void setup() {
   // put your setup code here, to run once:
@@ -99,9 +129,17 @@ void setup() {
   pinMode(PB_UP, INPUT);
   pinMode(PB_DOWN, INPUT);
   pinMode(PB_OK, INPUT);
-
-  ledcSetup(0, 5000, 8); 
-  ledcAttachPin(BUZZER, 0);
+  pinMode(LDR_PIN, INPUT);
+  
+  // Attach the servo to the specified pin
+  servo.attach(SERVO_PIN);
+ 
+  // ledcSetup(0, 5000, 8); 
+  // ledcAttachPin(BUZZER, 0);
+  
+  // //pwm channel for servo motor
+  // ledcSetup(1, 50, 16); // 50Hz frequency, 8-bit resolution
+  // ledcAttachPin(SERVO_PIN, 1); // Attach the servo pin to PWM channel 1
 
   Serial.begin(9600);
 
@@ -137,7 +175,7 @@ void setup() {
 }
 
 
-
+//main loop
 void loop() {
   update_time_with_check_alarm();
  
@@ -148,7 +186,10 @@ void loop() {
 
   check_temp();
   print_line("Tem:" + String(int(temp)) +" Hum:"+ String(int(humd)) , 0, 50, 1);
+  get_ldr_value(seconds);
+ 
   delay(200);
+  
 }
 
 //Print the text on the screen
@@ -665,3 +706,51 @@ void check_temp(void) {
     digitalWrite(LED_2, LOW);
   }
 }
+
+// Get LDR value in 5 seconds samples and average it
+void get_ldr_value(int seconds){
+  
+  int tu = 24; //change after mqtt 
+  int ts = 5;
+
+  static unsigned long lastSampleTime = 0; // Tracks the last sample time
+  const unsigned long sampleInterval = ts*1000; // 5 seconds in milliseconds
+
+  if (millis() - lastSampleTime >= sampleInterval) {
+
+    lastSampleTime = millis(); // Update the last sample time
+
+    int ldr_val = analogRead(LDR_PIN);
+    ldr_sum += ldr_val;
+    sampling_count += 1;
+    Serial.println("LDR Value: " + String(ldr_val)+ " Sampling Count: " + String(sampling_count)+"seconds"+ String(seconds));
+  }
+
+  if(sampling_count==tu){
+    int average = ldr_sum / tu;
+    ldr_sum = 0;
+    sampling_count = 0;
+
+     // Map the average LDR value to a range of 0 to 1
+    light_intensity = float(average) / 4095.0; // Normalize to 0-1 range
+    Serial.println("Average LDR Value: " + String(average) + " | Light Intensity: " + String(light_intensity));
+  }
+
+}
+
+void change_servo_angle(float intensity, float temperature,float ts,float tu) {
+   // Prevent division by zero or log(0)
+   if (tu <= 0 || ts <= 0 || T_med <= 0) return;
+
+   float log_ratio = log(ts / tu);
+   float angle = theta_offset + (180.0 - theta_offset) * intensity * gamma * log_ratio * (temperature / T_med);
+ 
+   // Clamp angle to valid range for servo
+   angle = constrain(angle, 0.0, 180.0);
+ 
+   // Move servo to calculated angle
+   servo.write((int)angle);
+
+}
+
+
