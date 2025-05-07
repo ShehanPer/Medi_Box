@@ -41,8 +41,7 @@ Servo servo;
 //MQTT Broker settings
 #define MQTT_BROKER "broker.hivemq.com"
 #define MQTT_PORT 1883
-#define MQTT_USER ""
-#define MQTT_PASSWORD ""
+
 
 #define MQTT_PUBLISH_TOPIC "medibox/data"
 #define MQTT_SUBSCRIBE_TOPIC "medibox/commands"
@@ -96,12 +95,14 @@ int sampling_count = 0;
 float light_intensity = 0.0;
 
 float theta_offset = 30.0;
-float gamma = 0.75;
+float gammaFactor = 0.75;
 float T_med = 30.0;
+int ts = 5;
+int tu = 2;
 
 // MQTT client initialization
 WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+PubSubClient client(espClient);
 
 void print_line(String text, int column, int row, int text_size);
 void update_time_with_check_alarm();
@@ -117,8 +118,48 @@ void update_time();
 void print_time_now(void);
 void show_alarms();
 void snooze_alarm();
-void get_ldr_value(int seconds);
-void change_servo_angle(float intensity, float temperature,float ts,float tu);
+void get_ldr_value();
+void change_servo_angle();
+
+
+//.............MQTT CALLBACK..............
+void callback(char* topic, byte* payload, unsigned int lenght){
+  String msg;
+  for (unsigned int i = 0; i< lenght; i++) msg += (char)payload[i];
+  float value = msg.toFloat();
+
+  if (strcmp(topic, "medibox/config/ts") == 0) ts = value;
+  else if (strcmp(topic, "medibox/config/tu") == 0) tu = value;
+  else if (strcmp(topic, "medibox/config/theta_offset") == 0) theta_offset = value;
+  else if (strcmp(topic, "medibox/config/gamma") == 0) gammaFactor = value;
+  else if (strcmp(topic, "medibox/config/tmed") == 0) T_med = value;
+
+  Serial.printf("Updated %s to %.2f\n", topic, value);
+
+}
+
+//.............MQTT RECONNECT..............
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect("ESP32MediboxClient")) {
+      Serial.println("connected");
+
+      // Subscribe to configuration topics
+      client.subscribe("medibox/config/ts");
+      client.subscribe("medibox/config/tu");
+      client.subscribe("medibox/config/theta_offset");
+      client.subscribe("medibox/config/gamma");
+      client.subscribe("medibox/config/tmed");
+
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" retrying in 5 seconds");
+      delay(5000);
+    }
+  }
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -172,11 +213,20 @@ void setup() {
   configTime(UTC_OFFSET, UTC_OFFSET_DST, NTP_SERVER);
   delay(200);
   display.clearDisplay();
+
+  client.setServer(MQTT_BROKER, MQTT_PORT);
+  client.setCallback(callback);
 }
 
 
 //main loop
 void loop() {
+
+  if(!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
   update_time_with_check_alarm();
  
   if (digitalRead(PB_OK) == LOW) {
@@ -186,7 +236,8 @@ void loop() {
 
   check_temp();
   print_line("Tem:" + String(int(temp)) +" Hum:"+ String(int(humd)) , 0, 50, 1);
-  get_ldr_value(seconds);
+  get_ldr_value();
+  change_servo_angle();
  
   delay(200);
   
@@ -708,10 +759,9 @@ void check_temp(void) {
 }
 
 // Get LDR value in 5 seconds samples and average it
-void get_ldr_value(int seconds){
+void get_ldr_value(){
   
-  int tu = 24; //change after mqtt 
-  int ts = 5;
+  
 
   static unsigned long lastSampleTime = 0; // Tracks the last sample time
   const unsigned long sampleInterval = ts*1000; // 5 seconds in milliseconds
@@ -726,24 +776,32 @@ void get_ldr_value(int seconds){
     Serial.println("LDR Value: " + String(ldr_val)+ " Sampling Count: " + String(sampling_count)+"seconds"+ String(seconds));
   }
 
-  if(sampling_count==tu){
-    int average = ldr_sum / tu;
+  int sending_interval = tu*60/ts;
+
+  if(sampling_count==sending_interval){
+    int average = ldr_sum /sampling_count;
     ldr_sum = 0;
     sampling_count = 0;
 
      // Map the average LDR value to a range of 0 to 1
     light_intensity = float(average) / 4095.0; // Normalize to 0-1 range
+
+    // send to mqtt
+    client.publish("medibox/light_intensity", String(light_intensity).c_str());
+    client.publish("medibox/temperature", String(temp).c_str());
+    client.publish("medibox/humidity", String(humd).c_str());
+
     Serial.println("Average LDR Value: " + String(average) + " | Light Intensity: " + String(light_intensity));
   }
 
 }
 
-void change_servo_angle(float intensity, float temperature,float ts,float tu) {
+void change_servo_angle() {
    // Prevent division by zero or log(0)
    if (tu <= 0 || ts <= 0 || T_med <= 0) return;
 
-   float log_ratio = log(ts / tu);
-   float angle = theta_offset + (180.0 - theta_offset) * intensity * gamma * log_ratio * (temperature / T_med);
+   float log_ratio = std::log(ts / tu);
+   float angle = theta_offset + (180.0 - theta_offset) * light_intensity * gammaFactor * log_ratio * (temp / T_med);
  
    // Clamp angle to valid range for servo
    angle = constrain(angle, 0.0, 180.0);
