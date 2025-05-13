@@ -764,7 +764,7 @@ void get_ldr_value(){
   
 
   static unsigned long lastSampleTime = 0; // Tracks the last sample time
-  const unsigned long sampleInterval = ts*1000; // 5 seconds in milliseconds
+  const unsigned long sampleInterval = ts*1000; //  seconds in milliseconds
 
   if (millis() - lastSampleTime >= sampleInterval) {
 
@@ -778,7 +778,7 @@ void get_ldr_value(){
 
   int sending_interval = tu*60/ts;
 
-  if(sampling_count==sending_interval){
+  if(sampling_count>=sending_interval){
     int average = ldr_sum /sampling_count;
     ldr_sum = 0;
     sampling_count = 0;
