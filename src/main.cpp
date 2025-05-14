@@ -93,6 +93,7 @@ float humd = 0;
 int ldr_sum = 0;
 int sampling_count = 0;
 float light_intensity = 0.0;
+float normalized_light_intensity = 0.0;
 
 float theta_offset = 30.0;
 float gammaFactor = 0.75;
@@ -771,6 +772,7 @@ void get_ldr_value(){
     lastSampleTime = millis(); // Update the last sample time
 
     int ldr_val = analogRead(LDR_PIN);
+    normalized_light_intensity = float(ldr_val) / 4095 ; // Normalize to 0-100 range
     ldr_sum += ldr_val;
     sampling_count += 1;
     Serial.println("LDR Value: " + String(ldr_val)+ " Sampling Count: " + String(sampling_count)+"seconds"+ String(seconds));
@@ -784,7 +786,7 @@ void get_ldr_value(){
     sampling_count = 0;
 
      // Map the average LDR value to a range of 0 to 1
-    light_intensity = float(average) / 4095.0; // Normalize to 0-1 range
+    light_intensity = float(average) ; // Normalize to 0-1 range
 
     // send to mqtt
     client.publish("medibox/light_intensity", String(light_intensity).c_str());
@@ -801,7 +803,7 @@ void change_servo_angle() {
    if (tu <= 0 || ts <= 0 || T_med <= 0) return;
 
    float log_ratio = std::log(ts / tu);
-   float angle = theta_offset + (180.0 - theta_offset) * light_intensity * gammaFactor * log_ratio * (temp / T_med);
+   float angle = theta_offset + (180.0 - theta_offset) * normalized_light_intensity * gammaFactor * log_ratio * (temp / T_med);
  
    // Clamp angle to valid range for servo
    angle = constrain(angle, 0.0, 180.0);
