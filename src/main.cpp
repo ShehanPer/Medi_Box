@@ -772,7 +772,7 @@ void get_ldr_value(){
     lastSampleTime = millis(); // Update the last sample time
 
     int ldr_val = analogRead(LDR_PIN);
-    normalized_light_intensity = float(ldr_val) / 4095 ; // Normalize to 0-100 range
+    normalized_light_intensity = 1.0 - (float(ldr_val) / 4095.0); // Normalize to 0-1 range
     ldr_sum += ldr_val;
     sampling_count += 1;
     Serial.println("LDR Value: " + String(ldr_val)+ " Sampling Count: " + String(sampling_count)+"seconds"+ String(seconds));
